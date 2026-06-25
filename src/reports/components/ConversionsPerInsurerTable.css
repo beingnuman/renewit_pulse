@@ -1,0 +1,99 @@
+.cpi-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.cpi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 22px;
+  background: var(--primary, #1e3456);
+  color: #fff;
+  flex-wrap: wrap;
+}
+.cpi-title { margin: 0; font-size: 17px; font-weight: 700; }
+.cpi-subtitle { margin-top: 3px; font-size: 12.5px; opacity: 0.85; }
+
+.cpi-stats { display: flex; gap: 26px; }
+.cpi-stat { display: flex; flex-direction: column; align-items: flex-end; }
+.cpi-stat-num { font-size: 20px; font-weight: 700; line-height: 1.1; }
+.cpi-stat-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+}
+
+.cpi-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 22px;
+  border-bottom: 1px solid #eef2f7;
+  background: #fafbfc;
+}
+.cpi-toolbar-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+}
+.cpi-select {
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  font-size: 13px;
+  color: #334155;
+  background: #fff;
+  cursor: pointer;
+}
+
+.cpi-empty {
+  padding: 40px 24px;
+  text-align: center;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.cpi-table-wrap { max-height: 640px; overflow: auto; }
+.cpi-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cpi-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f1f5f9;
+  color: #475569;
+  text-align: left;
+  font-weight: 600;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 10px 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.cpi-table tbody td {
+  padding: 8px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+}
+.cpi-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Month group header row */
+.cpi-table tbody tr.cpi-grp td {
+  background: #e9edf4;
+  color: #1e3456;
+  font-weight: 700;
+  font-size: 12.5px;
+  border-top: 1px solid #d8dce4;
+  border-bottom: 1px solid #d8dce4;
+  position: sticky;
+  top: 37px;
+}
+.cpi-table tbody tr:hover:not(.cpi-grp) { background: #f8fafc; }
+.cpi-insurer { padding-left: 28px !important; }

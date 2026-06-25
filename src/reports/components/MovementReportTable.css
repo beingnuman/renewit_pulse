@@ -1,0 +1,303 @@
+/* ═══════════════════════════════════════════════
+   MOVEMENT REPORT TABLE
+   ═══════════════════════════════════════════════ */
+
+.mv-outer {
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.mv-table-wrapper {
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03), 0 4px 16px rgba(0,0,0,0.04), 0 12px 40px rgba(0,0,0,0.03);
+  border: 1px solid #e2e8f0;
+}
+
+.mv-no-data {
+  padding: 64px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+/* ── Header ── */
+.mv-header {
+  position: relative;
+  padding: 32px 36px;
+  background: var(--primary);
+  border-radius: 20px 20px 0 0;
+}
+
+.mv-header-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 80% 0%, rgba(99,102,241,0.12) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 80% at 10% 100%, rgba(6,182,212,0.08) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.mv-header-content {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.mv-header-left { min-width: 0; }
+
+.mv-title {
+  margin: 0 0 10px;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+.mv-meta {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.mv-meta-item {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.5);
+}
+
+/* ── Header total cards ── */
+.mv-header-totals {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.mv-total-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 12px 18px;
+  min-width: 110px;
+}
+
+.mv-total-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.45);
+}
+
+.mv-total-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Export dropdown ── */
+.mv-export-wrap {
+  position: relative;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.mv-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.mv-export-btn:hover:not(:disabled) {
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.mv-export-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.mv-export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mv-export-btn svg { flex-shrink: 0; }
+
+.mv-export-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06);
+  min-width: 160px;
+  z-index: 50;
+  overflow: hidden;
+}
+
+.mv-export-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 16px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  text-align: left;
+}
+
+.mv-export-item:hover { background: #f1f5f9; }
+
+.mv-export-item:first-child { border-bottom: 1px solid #f1f5f9; }
+
+.mv-export-item svg { flex-shrink: 0; }
+
+/* ── Table ── */
+.mv-scroll {
+  overflow-x: auto;
+}
+
+.mv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: #1e293b;
+}
+
+.mv-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.mv-table tbody td {
+  padding: 9px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  white-space: nowrap;
+}
+
+.mv-row:hover td {
+  background: #f8fafc;
+}
+
+.mv-col-amt {
+  text-align: right;
+}
+
+.mv-amt {
+  font-variant-numeric: tabular-nums;
+}
+
+.mv-col-reg,
+.mv-reg {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* ── Group header row ── */
+.mv-group-row td {
+  background: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.mv-group-name {
+  font-weight: 700;
+  font-size: 12px;
+  color: #334155;
+  letter-spacing: 0.02em;
+  padding: 10px 16px;
+}
+
+/* ── Subtotal row ── */
+.mv-subtotal-row td {
+  background: #fff;
+  border-bottom: 2px solid #e2e8f0;
+  font-weight: 700;
+  color: #334155;
+}
+
+.mv-subtotal-label {
+  text-align: right;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+
+/* ── Tow / Drive badge ── */
+.mv-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.mv-badge-d {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.mv-badge-t {
+  background: #fffbeb;
+  color: #b45309;
+}
+
+/* ── Grand total ── */
+.mv-grand-row td {
+  background: var(--primary);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  padding: 14px 16px;
+}
+
+.mv-grand-label {
+  text-align: right;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.mv-table tfoot .mv-amt {
+  color: #fff;
+}

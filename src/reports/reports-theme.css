@@ -1,0 +1,31 @@
+/* Scoped palette for the ported reporting feature.
+ *
+ * The reporting component CSS references CSS custom properties (--primary,
+ * --border, --radius-*, --shadow-*, etc.) that originally lived in the
+ * standalone reporting app's global index.css :root. We re-declare them here
+ * scoped to the Reports subtree (.reports-page) instead of :root, so they do
+ * NOT override Pulse's own global variables (Pulse defines --accent,
+ * --shadow-sm and --shadow-lg with different values).
+ */
+.reports-page {
+  --primary: #1e3456;
+  --primary-light: #2a4570;
+  --accent: #4f46e5;
+  --accent-light: #eef2ff;
+  --accent-border: #c7d2fe;
+  --green: #22c55e;
+  --red: #ef4444;
+  --border: #e5e7eb;
+  --border-light: #f1f3f5;
+  --bg-subtle: #f8f9fb;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --transition: 0.15s ease;
+}

@@ -13,7 +13,7 @@ import { SearchResults } from './pages/SearchResults'
 import { Calendar } from './pages/Calendar'
 import { NewClaim } from './pages/NewClaim'
 import { Customers } from './pages/Customers'
-import { Placeholder } from './pages/Placeholder'
+import Reports from './reports/pages/Reports'
 import { Loader } from './components/Loader'
 import './App.css'
 
@@ -47,7 +47,7 @@ function App() {
         <Route path="/claims" element={<AllClaims />} />
         <Route path="/search" element={<SearchResults />} />
         <Route path="/new-claim" element={<NewClaim />} />
-        <Route path="/reports" element={<Placeholder title="Reports" />} />
+        <Route path="/reports" element={<Reports />} />
         <Route path="/documents" element={<Documents />} />
         <Route path="/customers" element={<Customers />} />
         <Route path="/allocate" element={<AllocateCsa />} />

@@ -1,0 +1,104 @@
+/* ═══════════════════════════════════════════════
+   SALES TEAM PERFORMANCE — Pulse palette
+   ═══════════════════════════════════════════════ */
+
+.stp-card {
+  max-width: 1600px;
+  margin: 0 auto 20px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
+}
+
+.stp-head {
+  padding: 14px 24px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.stp-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.8);
+}
+
+.stp-scroll { overflow-x: auto; }
+
+.stp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  color: #1e293b;
+}
+
+.stp-table thead th {
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 9px 12px;
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.stp-table tbody td {
+  padding: 7px 12px;
+  text-align: right;
+  border-bottom: 1px solid #f1f5f9;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.stp-row-label {
+  text-align: left !important;
+  font-weight: 500;
+  color: #334155;
+  position: sticky;
+  left: 0;
+  background: #fff;
+}
+
+.stp-section td {
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: left;
+  padding: 7px 12px;
+}
+
+.stp-total td {
+  background: #f9f9f9;
+  font-weight: 700;
+  color: #0f172a;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.stp-total .stp-row-label { background: #f9f9f9; }
+
+.stp-week { font-weight: 600; }
+
+.stp-sep { border-left: 2px solid #e2e8f0; }
+
+.stp-neg { color: #dc2626; }
+.stp-pos { color: #16a34a; }
+
+.stp-foot {
+  padding: 8px 24px;
+  background: #f9f9f9;
+  border-top: 1px solid #e2e8f0;
+  font-size: 11px;
+  color: #64748b;
+  text-align: right;
+}
