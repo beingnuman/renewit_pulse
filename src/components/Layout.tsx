@@ -35,6 +35,7 @@ export function Layout() {
   const { profile, signOut, branches, branchId } = useAuth()
   const navigate = useNavigate()
   const [showFuel, setShowFuel] = useState(false)
+  const [navOpen, setNavOpen] = useState(false)
 
   const currentBranch = branches.find((b) => b.id === branchId)?.branch_name ?? profile?.branch
 
@@ -75,7 +76,18 @@ export function Layout() {
         </div>
       </header>
 
-      <nav className="nav">
+      <nav className={`nav${navOpen ? ' open' : ''}`}>
+        <button
+          className="nav-toggle"
+          aria-label="Toggle menu"
+          aria-expanded={navOpen}
+          onClick={() => setNavOpen((o) => !o)}
+        >
+          <span className="nav-toggle-bars" aria-hidden>
+            <span /><span /><span />
+          </span>
+          <span className="nav-toggle-label">Menu</span>
+        </button>
         <div className="nav-inner">
           {NAV.filter((n) => !n.requiresCsa || profile?.canAllocateCsa).map(({ to, label, Icon }) => (
             <NavLink
@@ -83,6 +95,7 @@ export function Layout() {
               to={to}
               className={({ isActive }) => (isActive ? 'active' : '')}
               end={to === '/claims'}
+              onClick={() => setNavOpen(false)}
             >
               <span className="nav-icon" aria-hidden>
                 <Icon />
