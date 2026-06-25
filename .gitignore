@@ -12,6 +12,17 @@ dist
 dist-ssr
 *.local
 
+# Env files (contain secrets) — keep the example template tracked
+.env
+.env.*
+!.env.example
+
+# Build/tool caches
+.vite
+
+# FUSE filesystem leftovers (orphaned open-file copies)
+.fuse_hidden*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,111 +1,87 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  /* Renew-it brand */
+  --navy: #1b3a6b;
+  --navy-700: #16305a;
+  --maroon: #8a1a3a;
+  --brand-red: #b00830;
+  --ink: #1f2733;
+  --muted: #64748b;
+  --line: #e5e9f0;
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --accent: #2563eb;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --warranty: #f5b400;
+  --upsell: #f6a285;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --radius: 12px;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow: 0 4px 16px rgba(16, 24, 40, 0.08);
+  --shadow-lg: 0 12px 40px rgba(16, 24, 40, 0.12);
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  font-family: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  color: var(--ink);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
+* {
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100vh;
+}
+
 body {
-  margin: 0;
+  background:
+    radial-gradient(1100px 850px at 6% -12%, rgba(37, 99, 235, 0.20), transparent 58%),
+    radial-gradient(1000px 800px at 102% -6%, rgba(176, 8, 48, 0.16), transparent 55%),
+    radial-gradient(950px 800px at 88% 92%, rgba(13, 148, 136, 0.12), transparent 58%),
+    radial-gradient(1200px 950px at 42% 118%, rgba(124, 92, 255, 0.16), transparent 60%),
+    linear-gradient(180deg, #eef1f8 0%, #f1edf6 55%, #f3eef4 100%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
+button {
+  font-family: inherit;
+  cursor: pointer;
 }
 
-code,
-.counter {
-  font-family: var(--mono);
+/* Renew-it pill logo (text-based recreation) */
+.brand-logo {
   display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
+  align-items: stretch;
+  border-radius: 999px;
+  overflow: hidden;
+  font-weight: 800;
   font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+  letter-spacing: 0.2px;
+  box-shadow: var(--shadow-sm);
+  user-select: none;
+}
+.brand-logo .b-left {
+  background: var(--navy);
+  color: #fff;
+  padding: 6px 12px;
+}
+.brand-logo .b-right {
+  background: var(--maroon);
+  color: #fff;
+  padding: 6px 12px;
+  font-weight: 600;
+}
+.brand-logo.sm {
+  font-size: 13px;
+}
+.brand-logo.sm .b-left,
+.brand-logo.sm .b-right {
+  padding: 4px 10px;
 }
