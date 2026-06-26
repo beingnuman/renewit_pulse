@@ -56,7 +56,37 @@ _Last updated: 2026-06-25_
 - **Where:** `src/pages/ClaimDetail.tsx` (`validateTransition`, `StatusControl`).
 - **Status:** ✅ Implemented (frontend only).
 
-### 1.4 Available transitions
+### 1.4 "Not proceeding" statuses require a reason
+- **Rule:** Moving to **any** status whose name contains "not proceeding" (e.g.
+  **70-Tow-Client not proceeding**, **71-Drive-Client not proceeding**,
+  **80-Upsell Not Proceeding**) requires picking a reason. The confirmation modal shows a
+  **mandatory dropdown** of reasons; **Confirm change** is disabled until one is chosen.
+- **Reasons source:** `getNotProceedingReasons()` → RPC `get_not_proceeding_reasons`
+  (returns `{ id, reason }`).
+- **Persistence:** on confirm, the reason is saved to the claim's
+  `not_proceeding_reason` column via `setNotProceedingReason()` (calls
+  `update_claim_job_staff_details` with **only** that key, so other job/staff fields are
+  untouched). It therefore shows in the **Job/Branch Details** tab's "Reason for not
+  proceeding" field. It's also passed as the status-change comment
+  (`"Not proceeding: <reason>"`) for the event log. Reason is saved before the status change.
+- **Where:** `StatusControl` confirm modal in `src/pages/ClaimDetail.tsx`;
+  `setNotProceedingReason` in `src/lib/api.ts`.
+- **Status:** ✅ Implemented (frontend; persists to Job/Branch field).
+
+### 1.5 → 01-Converted — requires key fields populated
+- **Rule:** Moving to **01-Converted** (from any status) is blocked unless **all** of these
+  have values. Each missing field shows its own alert card titled "<Field> Missing" with
+  _"Please ensure the following fields are completed: <Field>"_:
+  - **Promise Days** (from `getClaimEventDates` → `promiseDays` > 0)
+  - **Approved Parts** (financial > 0)
+  - **Approved Quote** (financial > 0)
+  - **Pre-Costing/Projected Parts Costs** (financial `precosting` > 0)
+  - **RO Number** (`claim.ro_number`; blank or `"0"` counts as missing)
+- **Where:** `validateTransition` (Rule C) + `StatusControl` in `src/pages/ClaimDetail.tsx`.
+- **Frontend only.**
+- **Status:** ✅ Implemented (frontend only).
+
+### 1.6 Available transitions
 - Manual transition options come from the backend via `getStatusTransitions(claimId, userId)`.
 - A status change is committed through `updateClaimStatus(claimId, next, userId, userType)`
   after a confirmation modal.
@@ -130,11 +160,81 @@ VIN `^[A-HJ-NPR-Z0-9]{17}$`.
 
 ---
 
-## 5. Empty / "N/A" display rule
+## 5. Role-based navigation visibility
+
+Which top-nav tabs each role can see **and** open. Frontend-only: nav links are hidden
+(`navAllowed` in `src/lib/permissions.ts`, used by `Layout`) and routes are guarded
+(`RequireNav` in `App.tsx` redirects disallowed direct-URL hits to `/dashboard`).
+
+Base set (all listed roles): **Dashboard, All Claims, Reports, Documents**.
+
+| Role | + All Customers | + Calendar |
+|---|:---:|:---:|
+| Claims Handler | ✓ | ✓ |
+| Estimator | — | ✓ |
+| Conversion Clerk | — | ✓ |
+| Moderator | — | ✓ |
+| Parts Buyer | — | — |
+| Floor Manager | — | ✓ |
+| Auditor | — | ✓ |
+| CSA | — | ✓ |
+| Costing Clerk | — | ✓ |
+| Financial Manager | ✓ | ✓ |
+| Operations Director | ✓ | ✓ |
+
+- **Admins** (`is_admin`) see every tab, including **Allocate CSA** and **Admin**.
+- **Allocate CSA** stays gated by the existing CSA-allocation permission (`canAllocateCsa`).
+- **Unknown / generic / null roles** (e.g. `user`, `agent`, `SYSTEM`) fall back to the
+  **base set** only. _(Assumption — adjust in `navAllowed` if these should see more.)_
+- DB role strings are inconsistent (`Claims Handler` / `claims_handler`, `CSA` / `csa`,
+  `Parts Buyer`, `Operations Director`, …), so matching is keyword-normalised.
+- Detail/utility routes (`/claim/:id`, `/search`, `/new-claim`, KPI/status views) are not
+  nav-gated — any signed-in user can reach them.
+- **Status:** ✅ Implemented (frontend nav + route guard).
+
+---
+
+## 6. Empty / "N/A" display rule
 
 - Field values that resolve to `N/A` or `0` are shown muted + italic (visually de-emphasised)
   so populated data stands out. Display-only; not a blocking validation.
 - **Where:** `Field` component + `.cd-field-value.is-na` in `src/App.css`.
+
+---
+
+## 7. User form — auto agent-type assignment
+
+- Picking a **System role** in the Add/Edit User modal auto-selects that role's default
+  agent types (`getAgentTypesForRole` → each type's `default_roles`).
+- **Override:** selecting **Conversions Clerk** also auto-selects **Agent Type 4: Conversion**
+  (matched by name, so it doesn't depend on the agent-type's UUID), even though that type has
+  no `default_roles` tag in the backend. The user can still toggle types manually afterward.
+- **Where:** `onRoleChange` in `src/components/AddUserModal.tsx`. Frontend only.
+- **Status:** ✅ Implemented.
+
+---
+
+## 8. Speed Job & Targeted Priority (Overview tab)
+
+- **Toggles:** The "Special Handling & Priority" card (Overview) wires Speed Job →
+  `update_speedjob` (`claims.speed_indicator`) and Targeted Priority → `update_priority`
+  (`claims.priority`/`priority_flag`). Enabling is immediate; **disabling asks for
+  confirmation** ("This is a speed shop job. Are you sure you want to turn it off?").
+- **5-day SLA banner:** When Speed Job is on, a banner (above the info panel) shows the
+  5-day window. **Start = the claim's booking date** (`booked_date` / `timeline.date_booked`).
+  Due = booking date + 5 days. Computed live in the browser (frontend only).
+  - **On track → green**, shows "X Days Left".
+  - **Overdue → red**, shows "X Days Overdue".
+  - If there's no booking date, the banner shows "no booking date set".
+  - **Log Delay** button opens a modal; the explanation is saved as a claim **Issue**
+    (`createClaimIssue` → `manage_claim_issues`, severity High / type Production), which then
+    shows on the Overview & Issues tabs.
+- **Where:** `SpecialHandlingCard`, `SpeedJobBanner`, `LogDelayModal` in
+  `src/pages/ClaimDetail.tsx`; `updateSpeedJob` / `updatePriority` in `src/lib/api.ts`.
+- **Note:** the `claims.speed_indicator_set_at` column + `get_speed_job_sla` RPC (migration
+  `speedjob_started_at_for_sla`) were added for an earlier "start on toggle" approach and are
+  now unused (SLA uses booking date instead); left in place, harmless.
+- **Status:** ✅ Implemented (frontend; SLA from booking date).
 
 ---
 

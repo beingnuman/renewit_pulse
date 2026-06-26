@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth'
+import { canAccessPath } from './lib/permissions'
 import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
@@ -13,6 +14,7 @@ import { SearchResults } from './pages/SearchResults'
 import { Calendar } from './pages/Calendar'
 import { NewClaim } from './pages/NewClaim'
 import { Customers } from './pages/Customers'
+import { DisclaimerForm } from './pages/DisclaimerForm'
 import Reports from './reports/pages/Reports'
 import { Loader } from './components/Loader'
 import './App.css'
@@ -20,6 +22,12 @@ import './App.css'
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { session } = useAuth()
   return session ? <>{children}</> : <Navigate to="/" replace />
+}
+
+// Redirect to the dashboard if the signed-in user's role can't access this nav path.
+function RequireNav({ path, children }: { path: string; children: React.ReactNode }) {
+  const { profile } = useAuth()
+  return canAccessPath(profile, path) ? <>{children}</> : <Navigate to="/dashboard" replace />
 }
 
 function App() {
@@ -31,6 +39,9 @@ function App() {
 
   return (
     <Routes>
+      {/* Public, no-auth customer signing page */}
+      <Route path="/disclaimer/:token" element={<DisclaimerForm />} />
+
       <Route path="/" element={session ? <Navigate to="/dashboard" replace /> : <Login />} />
 
       <Route
@@ -49,10 +60,10 @@ function App() {
         <Route path="/new-claim" element={<NewClaim />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/documents" element={<Documents />} />
-        <Route path="/customers" element={<Customers />} />
-        <Route path="/allocate" element={<AllocateCsa />} />
-        <Route path="/admin" element={<Admin />} />
-        <Route path="/calendar" element={<Calendar />} />
+        <Route path="/customers" element={<RequireNav path="/customers"><Customers /></RequireNav>} />
+        <Route path="/allocate" element={<RequireNav path="/allocate"><AllocateCsa /></RequireNav>} />
+        <Route path="/admin" element={<RequireNav path="/admin"><Admin /></RequireNav>} />
+        <Route path="/calendar" element={<RequireNav path="/calendar"><Calendar /></RequireNav>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -899,12 +899,12 @@ export const SYSTEM_ROLES: string[] = [
   'Financial Manager',
   'Claims Handler',
   'Conversions Clerk',
+  'Costing Clerk',
   'CSA',
   'Estimator',
   'Parts Buyer',
   'Moderation',
   'Auditor',
-  'User',
 ]
 
 export interface AgentType {
@@ -1027,7 +1027,10 @@ export async function updateUser(userId: string, input: UpdateUserInput): Promis
     p_branch_ids: branchIds,
     p_default_branch_id: input.primaryBranchId,
     p_is_active: input.isActive,
-    p_agent_types: input.agentTypeNames.length ? input.agentTypeNames : null,
+    // Always send the full selection (even an empty array) so clearing agent
+    // types actually persists. The RPC COALESCEs a NULL back to the old value,
+    // which previously made "unassign all" silently keep the old types.
+    p_agent_types: input.agentTypeNames,
     p_agent_type_single: roleToAgentType(input.systemRole),
     p_has_admin_role: isAdmin,
     p_job_title: input.systemRole,
@@ -1134,6 +1137,13 @@ export interface ClaimDetail {
   additional_info?: { speed_shop: string | null; vip_client: boolean | null; relationship: string | null } | null
 }
 
+// Records that a user opened a claim (audit trail). The RPC self-throttles to one
+// log per user/claim every 5 minutes, so it's safe to call on every open.
+export async function logUserAccess(claimId: string, userId: string): Promise<void> {
+  const { error } = await supabase.rpc('log_user_access', { p_claim_id: claimId, p_user_id: userId })
+  if (error) throw new Error(error.message)
+}
+
 export async function getClaimDetails(claimId: string, userId: string): Promise<ClaimDetail> {
   const { data, error } = await supabase.rpc('get_claim_details', {
     p_claim_id: claimId,
@@ -1143,6 +1153,31 @@ export async function getClaimDetails(claimId: string, userId: string): Promise<
   const res = data as (ClaimDetail & { error?: string; message?: string }) | null
   if (!res || res.error) throw new Error(res?.message || res?.error || 'Failed to load claim')
   return res
+}
+
+// Toggle the Speed Job (speed_indicator) flag on a claim.
+export async function updateSpeedJob(claimId: string, on: boolean): Promise<void> {
+  const { data, error } = await supabase.rpc('update_speedjob', { p_claim_id: claimId, p_speed_indicator: on })
+  if (error) throw new Error(error.message)
+  const res = data as { success?: boolean; error?: string } | null
+  if (!res || res.success === false) throw new Error(res?.error || 'Failed to update Speed Job')
+}
+
+export interface SpeedJobSla { enabled: boolean; startedAt: string | null }
+// Reads the Speed Job flag + the timestamp it was switched on (drives the 5-day SLA).
+export async function getSpeedJobSla(claimId: string): Promise<SpeedJobSla> {
+  const { data, error } = await supabase.rpc('get_speed_job_sla', { p_claim_id: claimId })
+  if (error) throw new Error(error.message)
+  const r = (data ?? {}) as { speed_indicator?: boolean; started_at?: string | null }
+  return { enabled: !!r.speed_indicator, startedAt: r.started_at ?? null }
+}
+
+// Toggle the Targeted Priority (priority) flag on a claim.
+export async function updatePriority(claimId: string, on: boolean): Promise<void> {
+  const { data, error } = await supabase.rpc('update_priority', { p_claim_id: claimId, p_priority: on })
+  if (error) throw new Error(error.message)
+  const res = data as { success?: boolean; error?: string } | null
+  if (!res || res.success === false) throw new Error(res?.error || 'Failed to update Priority')
 }
 
 // ---------- Claim Overview: dedicated per-claim endpoints ----------
@@ -2747,6 +2782,20 @@ export async function updateClaimJobStaffDetails(claimId: string, userId: string
   if (!res || res.success === false) throw new Error(res?.error || 'Failed to save job/staff details')
 }
 
+// Sets ONLY the not-proceeding reason on a claim. The RPC updates a field only
+// when its key is present in p_data, so sending just this key leaves CSA,
+// estimator, and every other job/staff field untouched.
+export async function setNotProceedingReason(claimId: string, userId: string, reasonId: number | string): Promise<void> {
+  const { data, error } = await supabase.rpc('update_claim_job_staff_details', {
+    p_claim_id: claimId,
+    p_user_id: userId,
+    p_data: { not_proceeding_reason_id: String(reasonId) },
+  })
+  if (error) throw new Error(error.message)
+  const res = data as { success?: boolean; error?: string } | null
+  if (!res || res.success === false) throw new Error(res?.error || 'Failed to save not-proceeding reason')
+}
+
 export interface IdName { id: number; name: string }
 function dedupeByName(rows: Array<{ id: number; name: string | null }>): IdName[] {
   const seen = new Set<string>()
@@ -3498,4 +3547,196 @@ export async function getCalendarEvents(branchId: string | null, startDate: stri
       totalBookedValue: s.total_booked_value ?? 0,
     },
   }
+}
+
+// ---------- Claim Disclaimers ----------
+// Staff send a signing link to the customer; customer reviews 4 acknowledgement
+// sections + signs. Backed by the `disclaimer` edge function (send/load/sign/
+// status) and `disclaimer-pdf` (signed PDF). Function routes on the LAST path
+// segment, so the slugs are e.g. `disclaimer/send`.
+
+const DISCLAIMER_FN = `${SUPABASE_URL}/functions/v1/disclaimer`
+
+const disclaimerHeaders = {
+  apikey: SUPABASE_ANON_KEY,
+  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+  'Content-Type': 'application/json',
+}
+
+// The four fixed acknowledgement sections, in order, with their full legal copy.
+export const DISCLAIMER_SECTIONS: { key: string; label: string; body: string }[] = [
+  {
+    key: 'personal_items',
+    label: 'Personal Items',
+    body: 'I acknowledge that I have removed all personal belongings from the vehicle. Renew-It Group will not be held responsible for any personal items left in the vehicle during the repair process.',
+  },
+  {
+    key: 'windscreen',
+    label: 'Windscreen',
+    body: 'I acknowledge that Renew-It Group will not be held responsible for any existing windscreen damage, including chips, cracks, or scratches present before the vehicle was received.',
+  },
+  {
+    key: 'fuel_battery',
+    label: 'Fuel & Battery',
+    body: 'I acknowledge that the fuel level and battery condition have been noted. Renew-It Group is not responsible for fuel consumption during vehicle movement or pre-existing battery conditions.',
+  },
+  {
+    key: 'lock_nut',
+    label: 'Lock Nut',
+    body: 'I confirm that if my vehicle has locking wheel nuts, I have provided the key. Renew-It Group will not be responsible for delays or costs if the lock nut key was not provided.',
+  },
+]
+
+export type DisclaimerSentVia = 'whatsapp' | 'email' | 'sms' | 'link'
+
+export interface DisclaimerStatus {
+  token: string
+  sentVia: string | null
+  sentAt: string | null
+  firstOpenedAt: string | null
+  lastOpenedAt: string | null
+  openCount: number
+  isSigned: boolean
+  signedAt: string | null
+  customerName: string | null
+  customerEmail: string | null
+  customerPhone: string | null
+  vehicleReg: string | null
+}
+
+export interface DisclaimerSendResult {
+  token: string
+  disclaimerId: string
+  claimNumber: string | null
+  customerName: string | null
+  customerEmail: string | null
+  customerPhone: string | null
+  alreadyExisted: boolean
+}
+
+function normalizeDisclaimer(d: Record<string, unknown>): DisclaimerStatus {
+  const name = [d.customer_name, d.customer_surname].filter(Boolean).join(' ').trim()
+  return {
+    token: (d.token as string) ?? '',
+    sentVia: (d.sent_via as string) ?? null,
+    sentAt: (d.sent_at as string) ?? (d.created_at as string) ?? null,
+    firstOpenedAt: (d.first_opened_at as string) ?? null,
+    lastOpenedAt: (d.last_opened_at as string) ?? null,
+    openCount: (d.open_count as number) ?? 0,
+    isSigned: d.is_signed === true,
+    signedAt: (d.signed_at as string) ?? null,
+    customerName: name || null,
+    customerEmail: (d.customer_email as string) ?? null,
+    customerPhone: (d.customer_phone as string) ?? null,
+    vehicleReg: (d.vehicle_reg as string) ?? null,
+  }
+}
+
+// Build the public signing link. Base comes from VITE_DISCLAIMER_BASE_URL when
+// set (e.g. the deployed domain), otherwise the current origin — so it's correct
+// in dev (localhost) and prod without code changes.
+export function disclaimerLink(token: string): string {
+  const envBase = (import.meta.env.VITE_DISCLAIMER_BASE_URL as string | undefined)?.trim()
+  const base = envBase || (typeof window !== 'undefined' ? window.location.origin : '')
+  return `${base.replace(/\/$/, '')}/disclaimer/${token}`
+}
+
+export function disclaimerPdfUrl(token: string): string {
+  return `${SUPABASE_URL}/functions/v1/disclaimer-pdf?token=${encodeURIComponent(token)}`
+}
+
+// CALL 1 — create (or reuse) a disclaimer for a claim; returns the token.
+export async function sendDisclaimer(
+  claimId: string,
+  sentVia: DisclaimerSentVia = 'link',
+  sentBy?: string | null,
+): Promise<DisclaimerSendResult> {
+  const res = await fetch(`${DISCLAIMER_FN}/send`, {
+    method: 'POST',
+    headers: disclaimerHeaders,
+    body: JSON.stringify({ claim_id: claimId, sent_via: sentVia, sent_by: sentBy ?? null }),
+  })
+  const body = await res.json().catch(() => null)
+  if (!res.ok || !body?.success) {
+    throw new Error(body?.error || `Failed to create disclaimer (${res.status})`)
+  }
+  return {
+    token: body.token,
+    disclaimerId: body.disclaimer_id,
+    claimNumber: body.claim_number ?? null,
+    customerName: body.customer_name ?? null,
+    customerEmail: body.customer_email ?? null,
+    customerPhone: body.customer_phone ?? null,
+    alreadyExisted: body.already_existed === true,
+  }
+}
+
+// CALL 4 — list disclaimers for a claim (latest first) for the dashboard.
+export async function getDisclaimerStatus(claimId: string): Promise<{ hasSigned: boolean; disclaimers: DisclaimerStatus[] }> {
+  const res = await fetch(`${DISCLAIMER_FN}/status?claim_id=${encodeURIComponent(claimId)}`, {
+    method: 'GET',
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+  })
+  const body = await res.json().catch(() => null)
+  if (!res.ok || !body?.success) {
+    throw new Error(body?.error || `Failed to load disclaimer status (${res.status})`)
+  }
+  const rows = (body.disclaimers as Record<string, unknown>[]) ?? []
+  return { hasSigned: body.has_signed === true, disclaimers: rows.map(normalizeDisclaimer) }
+}
+
+export interface DisclaimerLoad {
+  isSigned: boolean
+  signedAt: string | null
+  customerName: string | null
+  vehicleReg: string | null
+  branchName: string | null
+  acknowledgements: { sectionKey: string; acknowledged: boolean }[]
+}
+
+// CALL 2 — load a disclaimer by token (customer-facing page). Also tracks opens.
+export async function loadDisclaimer(token: string): Promise<DisclaimerLoad> {
+  const res = await fetch(`${DISCLAIMER_FN}/load?token=${encodeURIComponent(token)}`, {
+    method: 'GET',
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+  })
+  const body = await res.json().catch(() => null)
+  if (!res.ok || !body?.success) {
+    throw new Error(body?.error || `This signing link is invalid or has expired.`)
+  }
+  const d = (body.disclaimer ?? {}) as Record<string, unknown>
+  const name = [d.customer_name, d.customer_surname].filter(Boolean).join(' ').trim()
+  const acks = (d.disclaimer_acknowledgements as Record<string, unknown>[]) ?? []
+  return {
+    isSigned: body.is_signed === true,
+    signedAt: body.signed_at ?? null,
+    customerName: name || null,
+    vehicleReg: (d.vehicle_reg as string) ?? null,
+    branchName: (body.branch_name as string) ?? null,
+    acknowledgements: acks.map((a) => ({ sectionKey: a.section_key as string, acknowledged: a.acknowledged === true })),
+  }
+}
+
+// CALL 3 — submit the signed disclaimer.
+export async function signDisclaimer(
+  token: string,
+  acknowledgements: { section_key: string; acknowledged: boolean; notes?: string }[],
+  signatureData: string,
+  signedName?: string,
+): Promise<{ signedAt: string }> {
+  const res = await fetch(`${DISCLAIMER_FN}/sign`, {
+    method: 'POST',
+    headers: disclaimerHeaders,
+    body: JSON.stringify({ token, acknowledgements, signature_data: signatureData, signed_name: signedName ?? null }),
+  })
+  const body = await res.json().catch(() => null)
+  if (res.status === 409 || body?.already_signed) {
+    const err = new Error('This disclaimer has already been signed.') as Error & { alreadySigned?: boolean }
+    err.alreadySigned = true
+    throw err
+  }
+  if (!res.ok || !body?.success) {
+    throw new Error(body?.error || `Failed to submit (${res.status})`)
+  }
+  return { signedAt: body.signed_at }
 }

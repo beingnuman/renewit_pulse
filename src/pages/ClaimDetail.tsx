@@ -3,10 +3,10 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth'
 import {
-  getClaimDetails, getClaimKeyDates, getClaimQuoteSummary, getClaimIssues, getClaimProgress,
-  getStatusTransitions, updateClaimStatus, updateCustomerVehicle, updateClaimInsuranceDetails, updateClaimDamageReport,
+  getClaimDetails, logUserAccess, getClaimKeyDates, getClaimQuoteSummary, getClaimIssues, getClaimProgress,
+  getStatusTransitions, updateClaimStatus, updateSpeedJob, updatePriority, updateCustomerVehicle, updateClaimInsuranceDetails, updateClaimDamageReport,
   getVehicleMakes, getVehicleModels, getInsurers, getBrokersByInsurance, getClaimPriorityDetails, getClaimContactPrefs,
-  getJobStaffDetails, updateClaimJobStaffDetails, getTowingCompanies, getStores, getNotProceedingReasons,
+  getJobStaffDetails, updateClaimJobStaffDetails, getTowingCompanies, getStores, getNotProceedingReasons, setNotProceedingReason,
   getCsas, getEstimators, getPartsBuyers, getProductionStaff,
   getTmsFinancialData, updateFinancialData,
   getClaimFiles, uploadClaimFile, formatFileSize, UPLOAD_CATEGORIES,
@@ -26,6 +26,8 @@ import {
   type Insurer, type Broker, type ClaimPriorityFlags,
   type IdName, type NotProceedingReason, type RoleMember, type FinancialData, type ClaimFile, type ModerationUpload,
   type ClaimPhoto,
+  sendDisclaimer, getDisclaimerStatus, disclaimerLink, disclaimerPdfUrl,
+  type DisclaimerStatus, type DisclaimerSentVia,
 } from '../lib/api'
 import { useToast } from '../components/Toast'
 import { printVoucher } from '../lib/fuelVoucher'
@@ -36,6 +38,7 @@ import {
   IconPalette, IconClock, IconMoney, IconAlert, IconBolt, IconCalendar, IconReports,
   IconDocuments, IconFilePdf, IconDashboard, IconClaims, IconCamera, IconFuel,
   IconAllocate, IconExternal, IconGauge, IconFlag, IconPlus, IconSearch, IconDownload, IconTrash, IconPrinter, IconLock,
+  IconCopy, IconCheck,
 } from '../components/icons'
 
 import type { ReactNode, ComponentType, DragEvent, WheelEvent as RWheelEvent, MouseEvent as RMouseEvent } from 'react'
@@ -92,6 +95,9 @@ export function ClaimDetail() {
   const [tab, setTab] = useState('Overview')
   const [reloadKey, setReloadKey] = useState(0)
   const [unsaved, setUnsaved] = useState(false)
+  // Tracks which claim we've already logged access for this mount (avoids
+  // re-logging on internal refreshes / reloadKey bumps).
+  const accessLoggedRef = useRef<string | null>(null)
 
   // Warn on browser close/refresh while there are unsaved edits.
   useEffect(() => {
@@ -130,6 +136,12 @@ export function ClaimDetail() {
       try {
         const c = await getClaimDetails(id, uid)
         if (on) setClaim(c)
+        // Log who opened this claim — once per claim per mount (the RPC also
+        // self-throttles to 5 min). Fire-and-forget; never blocks the page.
+        if (accessLoggedRef.current !== id) {
+          accessLoggedRef.current = id
+          void logUserAccess(id, uid).catch(() => {})
+        }
         // Supplementary Overview endpoints — best-effort, never block the page.
         const [keyDates, quote, issues, progress] = await Promise.all([
           getClaimKeyDates(id).catch(() => null),
@@ -196,6 +208,31 @@ export function ClaimDetail() {
       if (!kd?.promiseDate || !String(kd.promiseDate).trim()) {
         issues.push({ title: 'Promise Date empty', detail: 'Please select a promise date in the Key Dates tab to proceed.' })
       }
+      return issues
+    }
+
+    // Rule C: → 01-Converted needs Promise Days, Approved Quote/Parts, Pre-Costing, RO Number.
+    if (/^01-\s*converted$/i.test(target.trim())) {
+      const drNo = parseInt(claim.dr_number ?? '', 10)
+      const ro = (claim.ro_number ?? '').toString().trim()
+      let fin: FinancialData | null = null
+      let kd: ClaimEventDates | null = null
+      try {
+        [fin, kd] = await Promise.all([
+          Number.isFinite(drNo) ? getTmsFinancialData(claim.claim_id, drNo, branchId) : Promise.resolve(null),
+          getClaimEventDates(claim.claim_id),
+        ])
+      } catch {
+        issues.push({ title: 'Could not verify fields', detail: 'Unable to load financial or date data. Please try again.' })
+        return issues
+      }
+      const miss = (field: string) =>
+        issues.push({ title: `${field} Missing`, detail: `Please ensure the following fields are completed: ${field}` })
+      if (!(Number(kd?.promiseDays) > 0)) miss('Promise Days')
+      if (!((fin?.approvedParts ?? 0) > 0)) miss('Approved Parts')
+      if (!((fin?.approvedQuote ?? 0) > 0)) miss('Approved Quote')
+      if (!((fin?.precosting ?? 0) > 0)) miss('Pre-Costing/Projected Parts Costs')
+      if (!ro || ro === '0') miss('RO Number')
       return issues
     }
 
@@ -288,6 +325,13 @@ export function ClaimDetail() {
         />
       </div>
 
+      <SpeedJobBanner
+        claimId={claim.claim_id}
+        speedOn={claim.additional_info?.speed_shop === 'Yes'}
+        bookedDate={overview?.keyDates?.keyDates?.booked_date?.date ?? claim.timeline?.date_booked ?? null}
+        onChanged={() => setReloadKey((k) => k + 1)}
+      />
+
       <div className="cd-panel">
         <div className="cd-col">
           <div className="cd-col-title"><span className="cd-col-icon job"><IconBriefcase size={16} /></span> Job Information</div>
@@ -328,7 +372,7 @@ export function ClaimDetail() {
       </div>
 
       {tab === 'Overview' ? (
-        <Overview claim={claim} data={overview} />
+        <Overview claim={claim} data={overview} userId={profile?.id ?? ''} onChanged={() => setReloadKey((k) => k + 1)} />
       ) : tab === 'Customer & Vehicle Details' ? (
         <CustomerVehicleTab
           claim={claim}
@@ -3442,7 +3486,8 @@ function ModerationTab({ claim, userId, onChanged }: { claim: Claim; userId: str
   }
 
   return (
-    <div className="cv-form">
+    <div className="mod-grid">
+      <div className="mod-main">
       <section className="cv-card">
         <div className="cv-card-head">
           <div className="cv-card-titlewrap">
@@ -3521,6 +3566,44 @@ function ModerationTab({ claim, userId, onChanged }: { claim: Claim; userId: str
           </div>
         )}
       </section>
+      </div>
+
+      <aside className="mod-side">
+        {(() => {
+          const done = new Set(uploads.map((u) => (u.moderationType ?? '').trim().toLowerCase()).filter(Boolean))
+          const doneCount = MODERATION_TYPES.filter((t) => done.has(t.toLowerCase())).length
+          return (
+            <section className="cv-card mod-check-card">
+              <div className="cv-card-head">
+                <div className="cv-card-titlewrap">
+                  <span className="cv-card-ic violet"><IconShield size={18} /></span>
+                  <div>
+                    <div className="cv-card-title">Moderation Checklist</div>
+                    <div className="cv-card-sub">{doneCount} of {MODERATION_TYPES.length} uploaded</div>
+                  </div>
+                </div>
+              </div>
+              <ul className="mod-check-list">
+                {MODERATION_TYPES.map((t) => {
+                  const ok = done.has(t.toLowerCase())
+                  return (
+                    <li key={t} className={`mod-check-item${ok ? ' done' : ''}`}>
+                      <span className="mod-check-mark" aria-hidden>
+                        {ok && (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </span>
+                      <span className="mod-check-label">{t}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          )
+        })()}
+      </aside>
     </div>
   )
 }
@@ -3963,6 +4046,26 @@ function StatusControl({
   const [saving, setSaving] = useState(false)
   const [blockIssues, setBlockIssues] = useState<TransitionIssue[]>([])
   const [validating, setValidating] = useState<string | null>(null)
+  const [npReasons, setNpReasons] = useState<NotProceedingReason[]>([])
+  const [reasonId, setReasonId] = useState('')
+  const [reasonsLoading, setReasonsLoading] = useState(false)
+
+  const needsReason = !!pending && /not\s*proceeding/i.test(pending)
+
+  // Reset the chosen reason whenever the pending target changes.
+  useEffect(() => { setReasonId('') }, [pending])
+
+  // Load not-proceeding reasons the first time a not-proceeding target is picked.
+  useEffect(() => {
+    if (!needsReason || npReasons.length > 0) return
+    let on = true
+    setReasonsLoading(true)
+    getNotProceedingReasons()
+      .then((rs) => { if (on) setNpReasons(rs) })
+      .catch(() => { if (on) setNpReasons([]) })
+      .finally(() => { if (on) setReasonsLoading(false) })
+    return () => { on = false }
+  }, [needsReason, npReasons.length])
 
   const pickOption = async (s: string) => {
     setBlockIssues([])
@@ -4003,9 +4106,21 @@ function StatusControl({
 
   const confirm = async () => {
     if (!pending) return
+    if (needsReason && !reasonId) {
+      toast('Please select a reason for not proceeding.', 'error')
+      return
+    }
     setSaving(true)
     try {
-      await updateClaimStatus(claimId, pending, userId, userType)
+      const reasonLabel = npReasons.find((r) => String(r.id) === reasonId)?.reason
+      const comment = needsReason && reasonLabel ? `Not proceeding: ${reasonLabel}` : null
+      // Persist the reason onto the claim first, so the Job/Branch Details tab's
+      // "Reason for not proceeding" field reflects it. Done before the status
+      // change so a not-proceeding claim always carries its reason.
+      if (needsReason && reasonId) {
+        await setNotProceedingReason(claimId, userId, reasonId)
+      }
+      await updateClaimStatus(claimId, pending, userId, userType, comment)
       toast('Status updated', 'success')
       setPending(null)
       setOpen(false)
@@ -4092,11 +4207,30 @@ function StatusControl({
                 <span className="cd-status-to">{pending}</span>
               </p>
               <p className="muted">This will update the claim status and log the change.</p>
+              {needsReason && (
+                <div className="cd-np-reason">
+                  <label className="cd-np-label" htmlFor="cd-np-select">
+                    Reason for not proceeding <span className="req">*</span>
+                  </label>
+                  <select
+                    id="cd-np-select"
+                    className="cd-np-select"
+                    value={reasonId}
+                    onChange={(e) => setReasonId(e.target.value)}
+                    disabled={saving || reasonsLoading}
+                  >
+                    <option value="">{reasonsLoading ? 'Loading reasons…' : 'Select a reason…'}</option>
+                    {npReasons.map((r) => (
+                      <option key={r.id} value={String(r.id)}>{r.reason}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
             <div className="modal-actions">
               <div className="modal-actions-right">
                 <button className="btn-ghost" onClick={() => setPending(null)} disabled={saving}>Cancel</button>
-                <button className="new-claim" onClick={confirm} disabled={saving}>
+                <button className="new-claim" onClick={confirm} disabled={saving || (needsReason && !reasonId)}>
                   {saving ? 'Updating…' : 'Confirm change'}
                 </button>
               </div>
@@ -4126,7 +4260,409 @@ function computeTimeLeft(kd: ClaimKeyDates | null): string {
   return d >= 0 ? `${d}d left` : `${-d}d overdue`
 }
 
-function Overview({ claim, data }: { claim: Claim; data: OverviewData | null }) {
+const SENT_VIA_OPTS: { value: DisclaimerSentVia; label: string }[] = [
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'email', label: 'Email' },
+  { value: 'sms', label: 'SMS' },
+  { value: 'link', label: 'Link' },
+]
+const sentViaLabel = (v: string | null | undefined) =>
+  SENT_VIA_OPTS.find((o) => o.value === (v ?? '').toLowerCase())?.label ?? 'Link'
+
+function DisclaimerCard({ claim, userId }: { claim: Claim; userId: string }) {
+  const [status, setStatus] = useState<DisclaimerStatus | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [open, setOpen] = useState(false)
+
+  const refresh = async () => {
+    try {
+      const { disclaimers } = await getDisclaimerStatus(claim.claim_id)
+      setStatus(disclaimers[0] ?? null)
+    } catch {
+      setStatus(null)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    let on = true
+    setLoading(true)
+    getDisclaimerStatus(claim.claim_id)
+      .then(({ disclaimers }) => { if (on) setStatus(disclaimers[0] ?? null) })
+      .catch(() => { if (on) setStatus(null) })
+      .finally(() => { if (on) setLoading(false) })
+    return () => { on = false }
+  }, [claim.claim_id])
+
+  const signed = status?.isSigned
+  const sent = !!status && !status.isSigned
+
+  return (
+    <div className="cd-side-card">
+      <div className="cd-side-title"><IconDocuments size={16} /> Disclaimer</div>
+
+      {loading ? (
+        <div className="dscl-loading">Checking status…</div>
+      ) : !status ? (
+        <button className="cd-disclaimer-btn" onClick={() => setOpen(true)}>
+          <strong>Send Disclaimer</strong>
+          <span>Generate Signing Link</span>
+        </button>
+      ) : (
+        <div className="dscl-status">
+          <div className="dscl-status-head">
+            <span className={`dscl-badge ${signed ? 'signed' : 'pending'}`}>
+              {signed ? <><IconCheck size={13} /> Signed</> : 'Pending signature'}
+            </span>
+            <span className="dscl-via">via {sentViaLabel(status.sentVia)}</span>
+          </div>
+          <div className="dscl-rows">
+            <div className="dscl-row"><span>Sent</span><b>{fmtDate(status.sentAt)}</b></div>
+            <div className="dscl-row">
+              <span>Opened</span>
+              <b>{status.firstOpenedAt ? `${fmtDate(status.firstOpenedAt)}${status.openCount > 1 ? ` · ${status.openCount}×` : ''}` : 'Not yet'}</b>
+            </div>
+            {signed && <div className="dscl-row"><span>Signed</span><b>{fmtDate(status.signedAt)}</b></div>}
+          </div>
+          <div className="dscl-actions">
+            {signed ? (
+              <a className="dscl-btn primary" href={disclaimerPdfUrl(status.token)} target="_blank" rel="noreferrer">
+                <IconDownload size={15} /> Download PDF
+              </a>
+            ) : (
+              <button className="dscl-btn primary" onClick={() => setOpen(true)}>
+                <IconExternal size={15} /> Share Link
+              </button>
+            )}
+            <button className="dscl-btn ghost" onClick={() => setOpen(true)}>
+              {signed ? 'Re-send' : 'Details'}
+            </button>
+          </div>
+          {sent && <div className="dscl-foot">Updates automatically once the customer signs.</div>}
+        </div>
+      )}
+
+      {open && (
+        <SendDisclaimerModal
+          claim={claim}
+          userId={userId}
+          existing={status && !status.isSigned ? status : null}
+          onClose={() => setOpen(false)}
+          onChanged={refresh}
+        />
+      )}
+    </div>
+  )
+}
+
+function SendDisclaimerModal({
+  claim, userId, existing, onClose, onChanged,
+}: {
+  claim: Claim
+  userId: string
+  existing: DisclaimerStatus | null
+  onClose: () => void
+  onChanged: () => void | Promise<void>
+}) {
+  const toast = useToast()
+  const c = claim.customer_information
+  const v = claim.vehicle_information
+  const custName =
+    c?.name?.trim() ||
+    [c?.first_name, c?.last_name].filter(Boolean).join(' ').trim() ||
+    existing?.customerName ||
+    'Customer'
+  const phone = c?.mobile || c?.phone || existing?.customerPhone || ''
+  const email = c?.email || existing?.customerEmail || ''
+  const vehicle = [v?.make, v?.license_plate].filter(Boolean).join(' — ') || existing?.vehicleReg || ''
+
+  const [sentVia, setSentVia] = useState<DisclaimerSentVia>(
+    (existing?.sentVia as DisclaimerSentVia) || 'whatsapp',
+  )
+  const [token, setToken] = useState(existing?.token ?? '')
+  const [generating, setGenerating] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const link = token ? disclaimerLink(token) : ''
+
+  const generate = async () => {
+    setGenerating(true)
+    try {
+      const r = await sendDisclaimer(claim.claim_id, sentVia, userId)
+      setToken(r.token)
+      await onChanged()
+      toast(r.alreadyExisted ? 'Existing link loaded' : 'Signing link generated', 'success')
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : 'Failed to generate link', 'error')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const copy = async () => {
+    if (!link) return
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopied(true)
+      toast('Link copied to clipboard', 'success')
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast('Could not copy — select and copy the link manually', 'error')
+    }
+  }
+
+  return createPortal(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal modal-lg dscl-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div>
+            <div className="modal-title">Send Disclaimer</div>
+            <div className="modal-sub">Share the signing link with your customer</div>
+          </div>
+          <button className="modal-x" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+
+        <div className="dscl-cust">
+          <div className="dscl-cust-avatar"><IconUser size={20} /></div>
+          <div className="dscl-cust-body">
+            <div className="dscl-cust-name">{custName}</div>
+            <div className="dscl-cust-chips">
+              {phone && <span className="dscl-chip phone">📞 {phone}</span>}
+              {email && <span className="dscl-chip email">✉ {email}</span>}
+            </div>
+            {vehicle && <div className="dscl-cust-vehicle">{vehicle.toUpperCase()}</div>}
+          </div>
+        </div>
+
+        <div className="dscl-field-label">Send via</div>
+        <div className="dscl-segment">
+          {SENT_VIA_OPTS.map((o) => (
+            <button
+              key={o.value}
+              className={`dscl-seg${sentVia === o.value ? ' on' : ''}`}
+              onClick={() => setSentVia(o.value)}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+
+        {!link ? (
+          <button className="dscl-generate" onClick={generate} disabled={generating}>
+            {generating ? 'Generating…' : 'Generate Signing Link'}
+          </button>
+        ) : (
+          <>
+            <div className="dscl-field-label">Signing link</div>
+            <div className="dscl-linkrow">
+              <input className="dscl-linkinput" readOnly value={link} onFocus={(e) => e.target.select()} />
+              <button className="dscl-copy" onClick={copy}>
+                {copied ? <><IconCheck size={15} /> Copied</> : <><IconCopy size={15} /> Copy</>}
+              </button>
+            </div>
+
+            <div className="dscl-steps">
+              <div className="dscl-step"><b>1.</b> Send the link via WhatsApp, Email, or SMS</div>
+              <div className="dscl-step"><b>2.</b> Customer opens, reviews, and signs the form</div>
+              <div className="dscl-step"><b>3.</b> This page updates automatically once signed</div>
+            </div>
+          </>
+        )}
+
+        <div className="modal-actions">
+          <div className="modal-actions-right">
+            <button className="btn-ghost" onClick={onClose}>Close</button>
+            {link && (
+              <button className="new-claim" onClick={copy}>
+                {copied ? 'Copied!' : 'Copy Link'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+const SPEED_JOB_SLA_DAYS = 5
+const DAY_MS = 86_400_000
+const fmtSlaDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+function LogDelayModal({ claimId, onClose, onLogged }: { claimId: string; onClose: () => void; onLogged: () => void }) {
+  const toast = useToast()
+  const [reason, setReason] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const submit = async () => {
+    if (!reason.trim()) { toast('Please explain the delay.', 'error'); return }
+    setSaving(true)
+    try {
+      await createClaimIssue(claimId, {
+        title: 'Speed Job delay',
+        severity: 'High',
+        issueType: 'Production',
+        description: reason.trim(),
+      })
+      toast('Delay logged as an issue', 'success')
+      onLogged()
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : 'Failed to log delay', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return createPortal(
+    <div className="modal-overlay" onClick={() => !saving && onClose()}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-title">Log Speed Job delay</div>
+        <div className="modal-body">
+          <p className="muted">This speed job is past its 5-day SLA. Explain the delay — it’s logged as an issue and shows on the Overview &amp; Issues tabs.</p>
+          <label className="cd-np-label" htmlFor="cd-delay-reason" style={{ marginTop: 12 }}>Reason for delay <span className="req">*</span></label>
+          <textarea
+            id="cd-delay-reason"
+            className="cd-delay-textarea"
+            rows={4}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="What caused the delay?"
+            disabled={saving}
+          />
+        </div>
+        <div className="modal-actions">
+          <div className="modal-actions-right">
+            <button className="btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+            <button className="new-claim" onClick={submit} disabled={saving || !reason.trim()}>
+              {saving ? 'Logging…' : 'Log delay'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+function SpeedJobBanner({ claimId, speedOn, bookedDate, onChanged }: { claimId: string; speedOn: boolean; bookedDate: string | null; onChanged: () => void }) {
+  const [showLog, setShowLog] = useState(false)
+
+  if (!speedOn) return null
+
+  const parsed = bookedDate ? new Date(bookedDate) : null
+  const start = parsed && !isNaN(parsed.getTime()) ? parsed : null
+  const due = start ? new Date(start.getTime() + SPEED_JOB_SLA_DAYS * DAY_MS) : null
+  const now = Date.now()
+  const overdue = due ? now > due.getTime() : false
+  const daysOver = due ? (now - due.getTime()) / DAY_MS : 0
+  const daysLeft = due ? (due.getTime() - now) / DAY_MS : 0
+  const pct = start && due ? Math.min(100, Math.max(0, ((now - start.getTime()) / (due.getTime() - start.getTime())) * 100)) : 0
+
+  return (
+    <div className={`cd-sla${overdue ? ' overdue' : ' ontrack'}`}>
+      <div className="cd-sla-main">
+        <span className="cd-sla-ic"><IconGauge size={18} /></span>
+        <span className="cd-sla-title">Speed Job</span>
+        {start && due ? (
+          <span className="cd-sla-window">
+            <span className="cd-sla-date">{fmtSlaDate(start)}</span>
+            <span className="cd-sla-track"><span className="cd-sla-fill" style={{ width: `${pct}%` }} /></span>
+            <span className="cd-sla-date">{fmtSlaDate(due)}</span>
+          </span>
+        ) : (
+          <span className="cd-sla-muted">5-day SLA — no booking date set</span>
+        )}
+      </div>
+      <div className="cd-sla-right">
+        {due && (
+          <span className="cd-sla-status">
+            <IconAlert size={16} />
+            {overdue ? `${daysOver.toFixed(1)} Days Overdue` : `${Math.max(0, daysLeft).toFixed(1)} Days Left`}
+          </span>
+        )}
+        <button className="cd-sla-log" onClick={() => setShowLog(true)}><IconFlag size={15} /> Log Delay</button>
+      </div>
+      {showLog && (
+        <LogDelayModal claimId={claimId} onClose={() => setShowLog(false)} onLogged={() => { setShowLog(false); onChanged() }} />
+      )}
+    </div>
+  )
+}
+
+function SpecialHandlingCard({ claim, onChanged }: { claim: Claim; onChanged: () => void }) {
+  const toast = useToast()
+  const speedOn = claim.additional_info?.speed_shop === 'Yes'
+  const priorityOn = !!claim.priority
+  const [busy, setBusy] = useState<null | 'speed' | 'priority'>(null)
+  const [confirmOff, setConfirmOff] = useState<null | 'speed' | 'priority'>(null)
+
+  const apply = async (which: 'speed' | 'priority', next: boolean) => {
+    setBusy(which)
+    try {
+      if (which === 'speed') await updateSpeedJob(claim.claim_id, next)
+      else await updatePriority(claim.claim_id, next)
+      const noun = which === 'speed' ? 'Speed Job' : 'Targeted Priority'
+      toast(`${noun} ${next ? 'enabled' : 'disabled'}`, 'success')
+      setConfirmOff(null)
+      onChanged()
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : 'Update failed', 'error')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const onToggleClick = (which: 'speed' | 'priority', currentlyOn: boolean) => {
+    if (busy) return
+    if (currentlyOn) setConfirmOff(which) // disabling needs confirmation
+    else void apply(which, true) // enabling is immediate
+  }
+
+  return (
+    <div className="cd-side-card">
+      <div className="cd-side-title"><IconBolt size={16} /> Special Handling &amp; Priority</div>
+      <div className="cd-toggle-row">
+        <span className="cd-toggle-label"><span className="cd-toggle-ic blue"><IconGauge size={15} /></span> Speed Job</span>
+        <button className="cd-toggle-btn" onClick={() => onToggleClick('speed', speedOn)} disabled={busy === 'speed'} aria-pressed={speedOn} aria-label="Toggle Speed Job">
+          <Toggle on={speedOn} />
+        </button>
+      </div>
+      <div className="cd-toggle-row">
+        <span className="cd-toggle-label"><span className="cd-toggle-ic red"><IconFlag size={15} /></span> Targeted Priority</span>
+        <button className="cd-toggle-btn" onClick={() => onToggleClick('priority', priorityOn)} disabled={busy === 'priority'} aria-pressed={priorityOn} aria-label="Toggle Targeted Priority">
+          <Toggle on={priorityOn} />
+        </button>
+      </div>
+
+      {confirmOff && createPortal(
+        <div className="modal-overlay" onClick={() => !busy && setConfirmOff(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-title">{confirmOff === 'speed' ? 'Turn off Speed Job?' : 'Turn off Targeted Priority?'}</div>
+            <div className="modal-body">
+              <p className="muted">
+                {confirmOff === 'speed'
+                  ? 'This is a speed shop job. Are you sure you want to turn it off?'
+                  : 'This claim is flagged as targeted priority. Are you sure you want to turn it off?'}
+              </p>
+            </div>
+            <div className="modal-actions">
+              <div className="modal-actions-right">
+                <button className="btn-ghost" onClick={() => setConfirmOff(null)} disabled={!!busy}>Cancel</button>
+                <button className="new-claim" onClick={() => apply(confirmOff, false)} disabled={!!busy}>
+                  {busy ? 'Turning off…' : 'Turn off'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </div>
+  )
+}
+
+function Overview({ claim, data, userId, onChanged }: { claim: Claim; data: OverviewData | null; userId: string; onChanged: () => void }) {
   const fin = claim.financial
   const tl = claim.timeline
   const kd = data?.keyDates ?? null
@@ -4219,25 +4755,9 @@ function Overview({ claim, data }: { claim: Claim; data: OverviewData | null }) 
       </div>
 
       <div className="cd-side-col">
-        <div className="cd-side-card">
-          <div className="cd-side-title"><IconDocuments size={16} /> Disclaimer</div>
-          <button className="cd-disclaimer-btn">
-            <strong>Send Disclaimer</strong>
-            <span>Generate Signing Link</span>
-          </button>
-        </div>
+        <DisclaimerCard claim={claim} userId={userId} />
 
-        <div className="cd-side-card">
-          <div className="cd-side-title"><IconBolt size={16} /> Special Handling &amp; Priority</div>
-          <div className="cd-toggle-row">
-            <span className="cd-toggle-label"><span className="cd-toggle-ic blue"><IconGauge size={15} /></span> Speed Job</span>
-            <Toggle on={claim.additional_info?.speed_shop === 'Yes'} />
-          </div>
-          <div className="cd-toggle-row">
-            <span className="cd-toggle-label"><span className="cd-toggle-ic red"><IconFlag size={15} /></span> Targeted Priority</span>
-            <Toggle on={!!claim.priority} />
-          </div>
-        </div>
+        <SpecialHandlingCard claim={claim} onChanged={onChanged} />
 
         <div className="cd-side-card">
           <div className="cd-side-title"><IconCalendar size={16} /> Key Dates</div>

@@ -351,3 +351,58 @@ export function IconLogout({ size = 18 }: IconProps) {
     </svg>
   )
 }
+
+export function IconCopy({ size = 18 }: IconProps) {
+  return (
+    <svg {...base(size)} aria-hidden>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  )
+}
+
+export function IconCheck({ size = 18 }: IconProps) {
+  return (
+    <svg {...base(size)} aria-hidden>
+      <path d="M20 6L9 17l-5-5" />
+    </svg>
+  )
+}
+
+export function IconBox({ size = 18 }: IconProps) {
+  return (
+    <svg {...base(size)} aria-hidden>
+      <path d="M21 8l-9-5-9 5 9 5 9-5z" />
+      <path d="M3 8v8l9 5 9-5V8" />
+      <path d="M12 13v8" />
+    </svg>
+  )
+}
+
+export function IconWindscreen({ size = 18 }: IconProps) {
+  return (
+    <svg {...base(size)} aria-hidden>
+      <rect x="3" y="4" width="18" height="14" rx="2" />
+      <path d="M12 4v14M3 11h18" />
+    </svg>
+  )
+}
+
+export function IconBattery({ size = 18 }: IconProps) {
+  return (
+    <svg {...base(size)} aria-hidden>
+      <rect x="2" y="7" width="16" height="10" rx="2" />
+      <path d="M22 11v2" />
+      <path d="M7 10v4M11 10v4" />
+    </svg>
+  )
+}
+
+export function IconNut({ size = 18 }: IconProps) {
+  return (
+    <svg {...base(size)} aria-hidden>
+      <path d="M8 3h8l4 7-4 7H8l-4-7 4-7z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  )
+}

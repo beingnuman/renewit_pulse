@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
+import { navAllowed } from '../lib/permissions'
 import { Logo } from './Logo'
 import { UserMenu } from './UserMenu'
 import { StandaloneFuelSlipModal } from './StandaloneFuelSlip'
@@ -34,6 +35,7 @@ const NAV = [
 export function Layout() {
   const { profile, signOut, branches, branchId } = useAuth()
   const navigate = useNavigate()
+  const allowedNav = navAllowed(profile)
   const [showFuel, setShowFuel] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
 
@@ -89,7 +91,7 @@ export function Layout() {
           <span className="nav-toggle-label">Menu</span>
         </button>
         <div className="nav-inner">
-          {NAV.filter((n) => !n.requiresCsa || profile?.canAllocateCsa).map(({ to, label, Icon }) => (
+          {NAV.filter((n) => allowedNav.has(n.to)).map(({ to, label, Icon }) => (
             <NavLink
               key={to}
               to={to}

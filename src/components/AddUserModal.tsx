@@ -103,6 +103,12 @@ export function AddUserModal({
       const ids = key === 'admin'
         ? list.map((a) => a.id)
         : list.filter((a) => a.defaultRoles.includes(key)).map((a) => a.id)
+      // Conversions Clerk always gets Agent Type 4 (Conversion), matched by name
+      // so it doesn't depend on a hard-coded id.
+      if (key === 'conversions_clerk') {
+        const at4 = list.find((a) => /agent type 4\b/i.test(a.name))
+        if (at4 && !ids.includes(at4.id)) ids.push(at4.id)
+      }
       setSelected(new Set(ids))
       setAutoRole(value)
     } catch {
