@@ -1998,6 +1998,10 @@ export interface SearchResult {
   jobType: string | null
   contact: string | null
   aging: number | null
+  dip: number | null
+  approvedValue: number | null
+  speedShop: string | null
+  towDrive: string | null
   matchedField: string | null
   matchedValue: string | null
 }
@@ -2017,6 +2021,10 @@ function mapSearchRow(r: Record<string, unknown>): SearchResult {
     jobType: (r.job_type as string) ?? null,
     contact: (r.contact as string) ?? null,
     aging: (r.aging as number) ?? null,
+    dip: (r.dip as number) ?? null,
+    approvedValue: (r.approved_value as number) ?? null,
+    speedShop: (r.speed_shop as string) ?? null,
+    towDrive: (r.tow_drive as string) ?? null,
     matchedField: (r.matched_field as string) ?? null,
     matchedValue: (r.matched_value as string) ?? null,
   }
