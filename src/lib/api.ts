@@ -1381,7 +1381,7 @@ export async function getBrokersByInsurance(insurerId: string): Promise<Broker[]
 export async function updateClaimInsuranceDetails(
   claimId: string,
   userId: string,
-  ins: { insuranceCompanyId?: string; brokerId?: number | null; brokerName?: string; policyNo?: string; insurerClaimNo?: string },
+  ins: { insuranceCompanyId?: string; brokerId?: number | null; brokerName?: string; policyNo?: string; insurerClaimNo?: string; claimsAdmin?: string },
 ): Promise<void> {
   const { data, error } = await supabase.rpc('update_claim_insurance_details', {
     p_claim_id: claimId,
@@ -1391,6 +1391,7 @@ export async function updateClaimInsuranceDetails(
     p_broker_name: ins.brokerName ?? '',
     p_policy_no: ins.policyNo ?? '',
     p_insurer_claim_no: ins.insurerClaimNo ?? '',
+    p_insurer_agent: ins.claimsAdmin ?? '',
   })
   if (error) throw new Error(error.message)
   const res = data as { success?: boolean; error?: string } | null

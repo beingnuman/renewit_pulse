@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
 import {
   getReferralSources, getVehicleMakes, getVehicleModels, getEstimators, createNewEstimate, lookupVehicleForClaim,
-  QUOTE_TYPES, type ReferralSource, type RoleMember, type NewEstimateResult, type VehicleLookup,
+  getInsurers, getBrokersByInsurance, updateClaimInsuranceDetails,
+  QUOTE_TYPES, type ReferralSource, type RoleMember, type NewEstimateResult, type VehicleLookup, type Insurer, type Broker,
 } from '../lib/api'
 import { IconCar, IconUser, IconShield, IconAlert, IconReports, IconBriefcase, IconDocuments } from '../components/icons'
 import { SearchSelect } from '../components/SearchSelect'
@@ -26,6 +27,7 @@ interface Form {
   make: string; model: string; year: string; color: string; registration: string; warranty: YN
   accidentDate: string; damageDescription: string; additionalDamage: YN; otherRepairInformation: string
   rentalCar: YN; quoteType: string; sendAssessmentToBroker: YN
+  insurerId: string; brokerId: string; claimsAdmin: string; policyNo: string; insurerClaimNo: string
   estimatorId: string
   allowSms: boolean; allowEmail: boolean; allowPhone: boolean; allowWhatsapp: boolean; marketingConsent: YN
 }
@@ -34,7 +36,9 @@ const EMPTY: Form = {
   jobType: '', referredBy: '', title: '', firstName: '', surname: '', cellPhone: '', email: '',
   alternativePhone: '', comments: '', make: '', model: '', year: '', color: '', registration: '',
   warranty: '', accidentDate: todayISO(), damageDescription: '', additionalDamage: '', otherRepairInformation: '',
-  rentalCar: '', quoteType: '', sendAssessmentToBroker: '', estimatorId: '',
+  rentalCar: '', quoteType: '', sendAssessmentToBroker: '',
+  insurerId: '', brokerId: '', claimsAdmin: '', policyNo: '', insurerClaimNo: '',
+  estimatorId: '',
   allowSms: false, allowEmail: false, allowPhone: false, allowWhatsapp: false, marketingConsent: '',
 }
 
@@ -70,22 +74,36 @@ export function NewClaim() {
   const [makes, setMakes] = useState<string[]>([])
   const [models, setModels] = useState<string[]>([])
   const [estimators, setEstimators] = useState<RoleMember[]>([])
+  const [insurers, setInsurers] = useState<Insurer[]>([])
+  const [brokers, setBrokers] = useState<Broker[]>([])
 
   const branchName = branches.find((b) => b.id === branchId)?.branch_name ?? profile?.branch
 
   useEffect(() => {
     let on = true
     void (async () => {
-      const [refs, mk, est] = await Promise.all([
+      const [refs, mk, est, ins] = await Promise.all([
         getReferralSources().catch(() => []),
         getVehicleMakes().catch(() => []),
         getEstimators({ branchId, active: true }).catch(() => []),
+        getInsurers().catch(() => []),
       ])
       if (!on) return
-      setReferrals(refs); setMakes(mk); setEstimators(est)
+      setReferrals(refs); setMakes(mk); setEstimators(est); setInsurers(ins)
     })()
     return () => { on = false }
   }, [branchId])
+
+  // Load brokers whenever the selected insurer changes.
+  useEffect(() => {
+    let on = true
+    void (async () => {
+      if (!f.insurerId) { if (on) setBrokers([]); return }
+      const bks = await getBrokersByInsurance(f.insurerId).catch(() => [])
+      if (on) setBrokers(bks)
+    })()
+    return () => { on = false }
+  }, [f.insurerId])
 
   useEffect(() => {
     let on = true
@@ -148,7 +166,7 @@ export function NewClaim() {
     client: !!(f.referredBy && f.title && f.firstName && f.surname && f.cellPhone && f.email),
     vehicle: !!(f.make && f.model && f.year && f.color && f.registration && f.warranty),
     accident: !!(f.accidentDate && f.damageDescription && (f.additionalDamage !== 'yes' || f.otherRepairInformation.trim())),
-    quote: !!(f.rentalCar && f.quoteType),
+    quote: !!(f.rentalCar && f.quoteType) && (f.quoteType !== 'Insurance Quote' || !!f.insurerId),
     estimator: !!f.estimatorId,
     comms: commChosen,
   }
@@ -174,6 +192,9 @@ export function NewClaim() {
     { ok: f.additionalDamage !== 'yes' || !!f.otherRepairInformation.trim(), label: 'Additional Damage Description', section: 'accident' },
     { ok: !!f.rentalCar, label: 'Client Rental Car', section: 'quote' },
     { ok: !!f.quoteType, label: 'Type of Quote', section: 'quote' },
+    ...(f.quoteType === 'Insurance Quote' ? [
+      { ok: !!f.insurerId, label: 'Insurance Company', section: 'quote' },
+    ] : []),
     { ok: !!f.estimatorId, label: 'Estimator', section: 'estimator' },
     { ok: commChosen, label: 'Contact Method', section: 'comms' },
   ]
@@ -231,6 +252,9 @@ export function NewClaim() {
       'make', 'model', 'year', 'color', 'registration', 'warranty', 'accidentDate',
       'damageDescription', 'rentalCar', 'quoteType', 'estimatorId',
     ]
+    if (f.quoteType === 'Insurance Quote') {
+      req.push('insurerId') // only Insurance Company is mandatory
+    }
     for (const k of req) if (!String(f[k]).trim()) e[k] = true
     if (f.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) e.email = true
     if (f.additionalDamage === 'yes' && !f.otherRepairInformation.trim()) e.otherRepairInformation = true
@@ -263,6 +287,22 @@ export function NewClaim() {
         allowSms: f.allowSms, allowEmail: f.allowEmail, allowPhone: f.allowPhone, allowWhatsapp: f.allowWhatsapp,
         marketingConsent: f.marketingConsent === 'yes',
       })
+      // For an Insurance Quote, save the insurance details onto the new claim.
+      if (f.quoteType === 'Insurance Quote' && res.claimId) {
+        const selectedBroker = brokers.find((b) => b.id === f.brokerId)
+        try {
+          await updateClaimInsuranceDetails(res.claimId, profile.id, {
+            insuranceCompanyId: f.insurerId,
+            brokerId: selectedBroker?.legacyId ?? null,
+            brokerName: selectedBroker?.name ?? '',
+            policyNo: f.policyNo,
+            insurerClaimNo: f.insurerClaimNo,
+            claimsAdmin: f.claimsAdmin,
+          })
+        } catch {
+          setServerError('Claim created, but insurance details could not be saved. You can add them on the claim’s Customer & Vehicle tab.')
+        }
+      }
       setResult(res)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err: unknown) {
@@ -493,6 +533,52 @@ export function NewClaim() {
               </select>
             </Field>
           </div>
+
+          {f.quoteType === 'Insurance Quote' && (
+            <div className="nc-ins-panel">
+              <div className="nc-ins-title">Insurance Details</div>
+              <div className="nc2-grid">
+                <Field label="Insurance Company" required error={errors.insurerId}>
+                  <select
+                    className={`nc-input${cls('insurerId')}`}
+                    value={f.insurerId}
+                    onChange={(e) => { set('insurerId', e.target.value); set('brokerId', '') }}
+                  >
+                    <option value="">Please Select</option>
+                    {insurers.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </select>
+                </Field>
+                <Field label="Broker" error={errors.brokerId}>
+                  <select
+                    className={`nc-input${cls('brokerId')}`}
+                    value={f.brokerId}
+                    onChange={(e) => set('brokerId', e.target.value)}
+                    disabled={!f.insurerId || brokers.length === 0}
+                  >
+                    <option value="">{!f.insurerId ? 'Select insurer first' : (brokers.length ? 'Please Select' : '—')}</option>
+                    {brokers.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                  {f.insurerId && brokers.length === 0 && (
+                    <div className="nc-hint">No brokers found for this insurer.</div>
+                  )}
+                </Field>
+              </div>
+              <div className="nc2-grid">
+                <Field label="Insurance Claims Administrator" error={errors.claimsAdmin}>
+                  <input className={`nc-input${cls('claimsAdmin')}`} value={f.claimsAdmin} onChange={(e) => set('claimsAdmin', e.target.value)} />
+                </Field>
+                <Field label="Insurance Policy Number" error={errors.policyNo}>
+                  <input className={`nc-input${cls('policyNo')}`} value={f.policyNo} onChange={(e) => set('policyNo', e.target.value)} />
+                </Field>
+              </div>
+              <div className="nc2-grid">
+                <Field label="Insurance Claim Number" error={errors.insurerClaimNo}>
+                  <input className={`nc-input${cls('insurerClaimNo')}`} value={f.insurerClaimNo} onChange={(e) => set('insurerClaimNo', e.target.value)} />
+                </Field>
+              </div>
+            </div>
+          )}
+
           <YesNo label="May we send a copy of the Assessment to your Broker/Insurer?" value={f.sendAssessmentToBroker} onChange={(v) => set('sendAssessmentToBroker', v)} />
         </Card>
 

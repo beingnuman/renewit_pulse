@@ -202,7 +202,26 @@ Base set (all listed roles): **Dashboard, All Claims, Reports, Documents**.
 
 ---
 
-## 7. User form — auto agent-type assignment
+## 7. New Claim — Insurance Quote details
+
+- **Trigger:** On the New Claim form, choosing **Type of Quote = "Insurance Quote"** reveals an
+  **Insurance Details** panel inside the "Client Repair Quote Details" card.
+- **Fields:** Insurance Company (dropdown, `getInsurers`) — **required**; Broker (dropdown,
+  `getBrokersByInsurance` by selected insurer), Insurance Claims Administrator, Insurance Policy
+  Number, Insurance Claim Number — **optional** (saved if filled). Only Insurance Company blocks
+  submission. If the chosen insurer has no brokers, the Broker field is disabled with a
+  "No brokers found for this insurer." note below it.
+- **Persistence:** after `create_new_estimate` returns the new claim, the form calls
+  `updateClaimInsuranceDetails(claimId, …)` to save them. The claims-administrator field maps to
+  `claims.insurer_agent` (added via `p_insurer_agent` on the `update_claim_insurance_details` RPC,
+  migration `insurance_details_add_claims_administrator`). Broker is saved by its legacy id + name;
+  insurer by its company uuid.
+- **Where:** `src/pages/NewClaim.tsx`; `updateClaimInsuranceDetails` in `src/lib/api.ts`.
+- **Status:** ✅ Implemented (frontend + backend).
+
+---
+
+## 8. User form — auto agent-type assignment
 
 - Picking a **System role** in the Add/Edit User modal auto-selects that role's default
   agent types (`getAgentTypesForRole` → each type's `default_roles`).
@@ -214,7 +233,7 @@ Base set (all listed roles): **Dashboard, All Claims, Reports, Documents**.
 
 ---
 
-## 8. Speed Job & Targeted Priority (Overview tab)
+## 9. Speed Job & Targeted Priority (Overview tab)
 
 - **Toggles:** The "Special Handling & Priority" card (Overview) wires Speed Job →
   `update_speedjob` (`claims.speed_indicator`) and Targeted Priority → `update_priority`
