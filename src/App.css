@@ -7259,3 +7259,135 @@ table.summary tr.total td {
 }
 .dsf-gauge-btn:hover { border-color: rgba(27,58,107,0.32); color: var(--navy); }
 .dsf-gauge-btn.on { border-color: var(--navy); color: #fff; background: linear-gradient(135deg, var(--navy), var(--navy-700)); box-shadow: 0 6px 14px rgba(27,58,107,0.25); transform: translateY(-1px); }
+
+/* ---------- Vehicle Makes & Models (master-detail) ---------- */
+.vmm-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 16px;
+  align-items: stretch;
+}
+.vmm-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+  max-height: calc(100vh - 320px);
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(18px) saturate(165%);
+  -webkit-backdrop-filter: blur(18px) saturate(165%);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  padding: 14px;
+}
+.vmm-pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.vmm-pane-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.vmm-pane-title svg { color: var(--navy); }
+.vmm-models-for { color: var(--muted); font-weight: 600; font-size: 13px; }
+.vmm-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--navy);
+  background: rgba(27, 58, 107, 0.1);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+.vmm-pane .add-user-btn { padding: 8px 12px; font-size: 13px; }
+.vmm-search { width: 100%; flex: none; margin-bottom: 10px; }
+.vmm-search input { height: 40px; }
+.vmm-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 2px;
+}
+.vmm-empty { color: var(--muted); font-size: 13.5px; padding: 20px 6px; text-align: center; }
+.vmm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 11px 13px;
+  cursor: pointer;
+  transition: border-color 0.14s, background 0.14s, box-shadow 0.14s, transform 0.1s;
+}
+.vmm-row:hover { border-color: #cdd9ec; background: #fff; box-shadow: 0 4px 14px rgba(16, 24, 40, 0.07); transform: translateY(-1px); }
+.vmm-row.active {
+  border-color: var(--navy);
+  background: linear-gradient(135deg, rgba(27, 58, 107, 0.08), rgba(27, 58, 107, 0.03));
+  box-shadow: inset 0 0 0 1px rgba(27, 58, 107, 0.25);
+}
+.vmm-row.off { opacity: 0.62; }
+.vmm-row.off .vmm-row-name { text-decoration: line-through; text-decoration-color: rgba(0,0,0,0.25); }
+.vmm-row-name { font-size: 14px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vmm-model-row { cursor: default; }
+.vmm-model-row:hover { transform: none; }
+.vmm-row-meta { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+.vmm-models-badge {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  background: #eef2f7;
+  border-radius: 999px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+.vmm-row.active .vmm-models-badge { background: rgba(27, 58, 107, 0.14); color: var(--navy); }
+.vmm-edit {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--muted);
+  border: 1px solid transparent;
+  transition: background 0.14s, color 0.14s, border-color 0.14s;
+}
+.vmm-edit:hover { background: #fff; color: var(--navy); border-color: var(--line); }
+.vmm-chev { color: #b6bfcd; font-size: 18px; font-weight: 700; line-height: 1; }
+.vmm-row.active .vmm-chev { color: var(--navy); }
+.vmm-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--muted);
+  gap: 8px;
+}
+.vmm-placeholder-ic {
+  width: 64px; height: 64px;
+  display: grid; place-items: center;
+  border-radius: 18px;
+  color: var(--navy);
+  background: rgba(27, 58, 107, 0.08);
+  margin-bottom: 4px;
+}
+.vmm-placeholder-title { font-size: 16px; font-weight: 700; color: var(--ink); }
+.vmm-placeholder-sub { font-size: 13.5px; max-width: 240px; }
+@media (max-width: 860px) {
+  .vmm-grid { grid-template-columns: 1fr; }
+  .vmm-pane { max-height: none; }
+}

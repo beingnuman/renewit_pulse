@@ -2,22 +2,29 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   listBranches,
   listFuelStations,
+  listTowingCompanies,
   updateBranch,
   type Branch,
   type BranchUpdate,
   type FuelStation,
+  type TowingCompany,
 } from '../lib/api'
 import { Loader } from './Loader'
 import { useToast } from './Toast'
 import { BranchEditModal } from './BranchEditModal'
 import { FuelStationModal } from './FuelStationModal'
+import { TowingModal } from './TowingModal'
+import { VehicleMakeModelPanel } from './VehicleMakeModelPanel'
 import { IconSearch, IconPlus } from './icons'
 
-type SubTab = 'branches' | 'fuel' | 'bulk' | 'drive' | 'tow'
+type SubTab = 'branches' | 'fuel' | 'towing' | 'vehicles' | 'bulk' | 'drive' | 'tow'
+type ActiveFilter = 'all' | 'active' | 'inactive'
 
 const SUBTABS: { key: SubTab; label: string }[] = [
   { key: 'branches', label: 'Branches' },
   { key: 'fuel', label: 'Fuel Stations' },
+  { key: 'towing', label: 'Towing Companies' },
+  { key: 'vehicles', label: 'Vehicle Makes & Models' },
   { key: 'bulk', label: 'Bulk Move' },
   { key: 'drive', label: 'Drive Show' },
   { key: 'tow', label: 'Tow Show' },
@@ -281,6 +288,115 @@ function FuelSection({ branches }: { branches: Branch[] }) {
   )
 }
 
+function TowingSection() {
+  const [rows, setRows] = useState<TowingCompany[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState<ActiveFilter>('all')
+  const [reload, setReload] = useState(0)
+  const [showAdd, setShowAdd] = useState(false)
+  const [edit, setEdit] = useState<TowingCompany | null>(null)
+
+  useEffect(() => {
+    let on = true
+    const run = async () => {
+      setLoading(true)
+      try {
+        const d = await listTowingCompanies(null)
+        if (on) setRows(d)
+      } catch (e: unknown) {
+        if (on) setError(e instanceof Error ? e.message : 'Failed to load')
+      } finally {
+        if (on) setLoading(false)
+      }
+    }
+    void run()
+    return () => { on = false }
+  }, [reload])
+
+  const counts = useMemo<Record<ActiveFilter, number>>(() => ({
+    all: rows.length,
+    active: rows.filter((r) => r.is_active !== false).length,
+    inactive: rows.filter((r) => r.is_active === false).length,
+  }), [rows])
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return rows.filter((r) => {
+      if (filter === 'active' && r.is_active === false) return false
+      if (filter === 'inactive' && r.is_active !== false) return false
+      if (q && !(r.name ?? '').toLowerCase().includes(q)) return false
+      return true
+    })
+  }, [rows, search, filter])
+
+  if (loading) return <Loader label="Loading towing companies…" />
+  if (error) return <div className="login-error">{error}</div>
+
+  const action = (
+    <>
+      <div className="chips">
+        {(['all', 'active', 'inactive'] as ActiveFilter[]).map((f) => (
+          <button key={f} className={`chip-f${filter === f ? ' active' : ''}`} onClick={() => setFilter(f)}>
+            {f === 'all' ? 'All' : f === 'active' ? 'Active' : 'Inactive'}
+            <span className="chip-count">{counts[f]}</span>
+          </button>
+        ))}
+      </div>
+      <button className="new-claim add-user-btn" onClick={() => setShowAdd(true)}>
+        <IconPlus size={16} /> Add Towing Company
+      </button>
+    </>
+  )
+
+  return (
+    <>
+      <SearchBar value={search} onChange={setSearch} action={action} />
+      <div className="table-scroll">
+        <table className="admin-table">
+          <thead>
+            <tr><th>Company</th><th>Status</th><th className="r">Actions</th></tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 && <tr><td className="empty" colSpan={3}>No towing companies found.</td></tr>}
+            {filtered.map((c) => (
+              <tr key={c.id} className="row-clickable" onClick={() => setEdit(c)} title="Click to edit">
+                <td><span className="cell-name">{c.name}</span></td>
+                <td className="cell-badge">
+                  <span className={`pill-status ${c.is_active !== false ? 'on' : 'off'}`}>
+                    {c.is_active !== false ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td className="r">
+                  <button className="btn-ghost sm" onClick={(e) => { e.stopPropagation(); setEdit(c) }}>
+                    Manage
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="admin-foot">{filtered.length} towing companies</div>
+
+      {showAdd && (
+        <TowingModal
+          onClose={() => setShowAdd(false)}
+          onSaved={() => { setShowAdd(false); setReload((n) => n + 1) }}
+        />
+      )}
+      {edit && (
+        <TowingModal
+          company={edit}
+          onClose={() => setEdit(null)}
+          onSaved={() => { setEdit(null); setReload((n) => n + 1) }}
+        />
+      )}
+    </>
+  )
+}
+
 export function BranchControls() {
   const [sub, setSub] = useState<SubTab>('branches')
   const [branches, setBranches] = useState<Branch[]>([])
@@ -331,6 +447,8 @@ export function BranchControls() {
         <>
           {sub === 'branches' && <BranchesSection branches={branches} onSaved={refresh} />}
           {sub === 'fuel' && <FuelSection branches={branches} />}
+          {sub === 'towing' && <TowingSection />}
+          {sub === 'vehicles' && <VehicleMakeModelPanel />}
           {sub === 'bulk' && (
             <ToggleSection
               branches={branches}

@@ -224,6 +224,133 @@ export async function deleteFuelStation(id: string, hard = false): Promise<void>
   checkFuelRes(data)
 }
 
+// ---------- Branch towing companies ----------
+
+export interface TowingCompany {
+  id: number
+  name: string
+  branch_uid: string | null
+  branch_name?: string | null
+  is_active: boolean
+}
+
+interface TowingListResult {
+  success?: boolean
+  towing_companies?: TowingCompany[]
+}
+
+export async function listTowingCompanies(branchId?: string | null): Promise<TowingCompany[]> {
+  const { data, error } = await supabase.rpc('branch_towing_companies_list', {
+    p_branch_id: branchId ?? null,
+  })
+  if (error) throw new Error(error.message)
+  return ((data as TowingListResult)?.towing_companies ?? []) as TowingCompany[]
+}
+
+export interface TowingCompanyInput {
+  name: string
+  isActive?: boolean
+}
+
+export async function createTowingCompany(input: TowingCompanyInput): Promise<void> {
+  const { data, error } = await supabase.rpc('branch_towing_companies_create', {
+    p_branch_id: null,
+    p_name: input.name.trim(),
+    p_is_active: input.isActive ?? true,
+  })
+  if (error) throw new Error(error.message)
+  checkFuelRes(data)
+}
+
+export async function updateTowingCompany(id: number, input: TowingCompanyInput): Promise<void> {
+  const { data, error } = await supabase.rpc('branch_towing_companies_update', {
+    p_id: id,
+    p_branch_id: null,
+    p_name: input.name.trim(),
+    p_is_active: input.isActive ?? true,
+  })
+  if (error) throw new Error(error.message)
+  checkFuelRes(data)
+}
+
+export async function deleteTowingCompany(id: number, hard = false): Promise<void> {
+  const { data, error } = await supabase.rpc('branch_towing_companies_delete', {
+    p_id: id,
+    p_hard: hard,
+  })
+  if (error) throw new Error(error.message)
+  checkFuelRes(data)
+}
+
+// ---------- Vehicle makes & models (admin management) ----------
+
+export interface VehicleMakeRow {
+  make: string
+  model_count: number
+  is_active: boolean
+}
+export interface VehicleModelRow {
+  model: string
+  is_active: boolean
+}
+
+export async function listVehicleMakes(): Promise<VehicleMakeRow[]> {
+  const { data, error } = await supabase.rpc('vmm_makes_list')
+  if (error) throw new Error(error.message)
+  return ((data as { makes?: VehicleMakeRow[] })?.makes ?? []) as VehicleMakeRow[]
+}
+
+export async function listVehicleModelsAdmin(make: string): Promise<VehicleModelRow[]> {
+  const { data, error } = await supabase.rpc('vmm_models_list', { p_make: make })
+  if (error) throw new Error(error.message)
+  return ((data as { models?: VehicleModelRow[] })?.models ?? []) as VehicleModelRow[]
+}
+
+export async function createVehicleMake(make: string): Promise<void> {
+  const { data, error } = await supabase.rpc('vmm_make_create', { p_make: make.trim() })
+  if (error) throw new Error(error.message)
+  checkFuelRes(data)
+}
+
+export async function updateVehicleMake(make: string, patch: { name?: string; isActive?: boolean }): Promise<void> {
+  const { data, error } = await supabase.rpc('vmm_make_update', {
+    p_make: make,
+    p_new_name: patch.name?.trim() ?? null,
+    p_is_active: patch.isActive ?? null,
+  })
+  if (error) throw new Error(error.message)
+  checkFuelRes(data)
+}
+
+export async function deleteVehicleMake(make: string, hard = false): Promise<void> {
+  const { data, error } = await supabase.rpc('vmm_make_delete', { p_make: make, p_hard: hard })
+  if (error) throw new Error(error.message)
+  checkFuelRes(data)
+}
+
+export async function createVehicleModel(make: string, model: string): Promise<void> {
+  const { data, error } = await supabase.rpc('vmm_model_create', { p_make: make, p_model: model.trim() })
+  if (error) throw new Error(error.message)
+  checkFuelRes(data)
+}
+
+export async function updateVehicleModel(make: string, model: string, patch: { name?: string; isActive?: boolean }): Promise<void> {
+  const { data, error } = await supabase.rpc('vmm_model_update', {
+    p_make: make,
+    p_model: model,
+    p_new_model: patch.name?.trim() ?? null,
+    p_is_active: patch.isActive ?? null,
+  })
+  if (error) throw new Error(error.message)
+  checkFuelRes(data)
+}
+
+export async function deleteVehicleModel(make: string, model: string, hard = false): Promise<void> {
+  const { data, error } = await supabase.rpc('vmm_model_delete', { p_make: make, p_model: model, p_hard: hard })
+  if (error) throw new Error(error.message)
+  checkFuelRes(data)
+}
+
 export interface UserPermissions {
   role?: string
   user_id?: string
