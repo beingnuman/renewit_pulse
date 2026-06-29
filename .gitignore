@@ -16,6 +16,8 @@ dist-ssr
 .env
 .env.*
 !.env.example
+# Build-time public config for VM deploys (anon key is public/RLS-protected)
+!.env.production
 
 # Build/tool caches
 .vite
