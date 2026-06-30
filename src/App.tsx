@@ -3,6 +3,7 @@ import { useAuth } from './auth'
 import { canAccessPath } from './lib/permissions'
 import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
+import { StaffLogin } from './pages/StaffLogin'
 import { AuthCallback } from './pages/AuthCallback'
 import { Dashboard } from './pages/Dashboard'
 import { AllClaims } from './pages/AllClaims'
@@ -47,6 +48,9 @@ function App() {
       <Route path="/auth-callback" element={<AuthCallback />} />
 
       <Route path="/" element={session ? <Navigate to="/dashboard" replace /> : <Login />} />
+
+      {/* Unlisted email/password sign-in for testers (not linked from the SSO screen) */}
+      <Route path="/staff-login" element={session ? <Navigate to="/dashboard" replace /> : <StaffLogin />} />
 
       <Route
         element={

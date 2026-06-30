@@ -1,19 +1,16 @@
-import { useState, type FormEvent } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { Logo } from '../components/Logo'
+import { AuthShell } from '../components/AuthShell'
 
 export function Login() {
-  const { signIn, signInWithMicrosoft } = useAuth()
-  const navigate = useNavigate()
+  const { signInWithMicrosoft } = useAuth()
   const location = useLocation()
   // An SSO failure (e.g. account not on the allow-list) routes back here with
   // a friendly message in navigation state.
   const ssoError = (location.state as { authError?: string } | null)?.authError ?? null
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [err, setErr] = useState<string | null>(ssoError)
-  const [busy, setBusy] = useState(false)
   const [msBusy, setMsBusy] = useState(false)
 
   const handleMicrosoft = async () => {
@@ -27,75 +24,22 @@ export function Login() {
     }
   }
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setErr(null)
-    setBusy(true)
-    const { error } = await signIn(email.trim(), password)
-    setBusy(false)
-    if (error) {
-      setErr(error)
-      return
-    }
-    navigate('/dashboard')
-  }
-
   return (
-    <div className="login-wrap">
-      <div className="login-card">
-        <Logo branch="Group" height={40} />
+    <AuthShell>
+      <div className="login-card login-card-sso">
+        <div className="login-head">
+          <Logo branch="Group" height={34} />
+          <span className="login-eyebrow">Renew-it Pulse</span>
+        </div>
+
         <h1>Welcome back</h1>
-        <p className="sub">Sign in to your Renew-it account</p>
+        <p className="sub">Continue with your Microsoft work account to access your dashboard.</p>
 
-        <form onSubmit={handleSubmit} className="login-form">
-          <label className="field">
-            <span>Email</span>
-            <div className="field-input">
-              <svg className="field-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <rect x="3" y="5" width="18" height="14" rx="2" />
-                <path d="m3 7 9 6 9-6" />
-              </svg>
-              <input
-                type="email"
-                autoComplete="username"
-                placeholder="you@renew-it.co.za"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-          </label>
-
-          <label className="field">
-            <span>Password</span>
-            <div className="field-input">
-              <svg className="field-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <rect x="4" y="11" width="16" height="10" rx="2" />
-                <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-              </svg>
-              <input
-                type="password"
-                autoComplete="current-password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-          </label>
-
-          {err && <div className="login-error">{err}</div>}
-
-          <button type="submit" className="login-submit" disabled={busy}>
-            {busy ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
-
-        <div className="login-divider"><span>or</span></div>
+        {err && <div className="login-error">{err}</div>}
 
         <button
           type="button"
-          className="ms-btn"
+          className="ms-btn ms-btn-primary"
           onClick={handleMicrosoft}
           disabled={msBusy}
         >
@@ -108,10 +52,14 @@ export function Login() {
           {msBusy ? 'Redirecting…' : 'Sign in with Microsoft'}
         </button>
 
-        <div className="login-foot">
-          Your branch &amp; role are assigned to your account automatically.
+        <div className="login-secure">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <rect x="4" y="11" width="16" height="10" rx="2" />
+            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+          </svg>
+          Secured by Microsoft single sign-on. Access follows your role &amp; branch automatically.
         </div>
       </div>
-    </div>
+    </AuthShell>
   )
 }
