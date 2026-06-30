@@ -3,6 +3,7 @@ import { useAuth } from './auth'
 import { canAccessPath } from './lib/permissions'
 import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
+import { AuthCallback } from './pages/AuthCallback'
 import { Dashboard } from './pages/Dashboard'
 import { AllClaims } from './pages/AllClaims'
 import { ClaimsView } from './pages/ClaimsView'
@@ -41,6 +42,9 @@ function App() {
     <Routes>
       {/* Public, no-auth customer signing page */}
       <Route path="/disclaimer/:token" element={<DisclaimerForm />} />
+
+      {/* Public — Microsoft SSO lands here; must NOT require login */}
+      <Route path="/auth-callback" element={<AuthCallback />} />
 
       <Route path="/" element={session ? <Navigate to="/dashboard" replace /> : <Login />} />
 

@@ -1,15 +1,31 @@
 import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { Logo } from '../components/Logo'
 
 export function Login() {
-  const { signIn } = useAuth()
+  const { signIn, signInWithMicrosoft } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  // An SSO failure (e.g. account not on the allow-list) routes back here with
+  // a friendly message in navigation state.
+  const ssoError = (location.state as { authError?: string } | null)?.authError ?? null
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [err, setErr] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(ssoError)
   const [busy, setBusy] = useState(false)
+  const [msBusy, setMsBusy] = useState(false)
+
+  const handleMicrosoft = async () => {
+    setErr(null)
+    setMsBusy(true)
+    const { error } = await signInWithMicrosoft()
+    // On success the browser is already redirecting to Microsoft.
+    if (error) {
+      setErr(error)
+      setMsBusy(false)
+    }
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -77,15 +93,19 @@ export function Login() {
 
         <div className="login-divider"><span>or</span></div>
 
-        <button className="ms-btn" disabled title="Microsoft SSO coming soon">
+        <button
+          type="button"
+          className="ms-btn"
+          onClick={handleMicrosoft}
+          disabled={msBusy}
+        >
           <span className="ms-grid" aria-hidden>
             <span style={{ background: '#f25022' }} />
             <span style={{ background: '#7fba00' }} />
             <span style={{ background: '#00a4ef' }} />
             <span style={{ background: '#ffb900' }} />
           </span>
-          Sign in with Microsoft
-          <span className="soon">soon</span>
+          {msBusy ? 'Redirecting…' : 'Sign in with Microsoft'}
         </button>
 
         <div className="login-foot">

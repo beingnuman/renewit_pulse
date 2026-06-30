@@ -42,6 +42,7 @@ interface AuthCtx {
   branchId: string | null
   setBranchId: (id: string | null) => void
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
+  signInWithMicrosoft: () => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   updateAvatar: (file: File) => Promise<void>
 }
@@ -243,6 +244,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null }
   }
 
+  // Microsoft (Azure AD) SSO. Supabase handles the full OAuth dance and, on
+  // return to /auth-callback, the client picks the session up from the URL
+  // (detectSessionInUrl) and onAuthStateChange hydrates the profile — the same
+  // path as password sign-in. A first-time sign-in fires the backend
+  // trg_enforce_preregistered_aad trigger: if the email isn't on the active
+  // allow-list, Supabase redirects back with an error instead of a session.
+  const signInWithMicrosoft: AuthCtx['signInWithMicrosoft'] = async () => {
+    setError(null)
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'azure',
+      options: {
+        redirectTo: `${window.location.origin}/auth-callback`,
+        scopes: 'email openid profile',
+      },
+    })
+    if (error) {
+      setError(error.message)
+      return { error: error.message }
+    }
+    // On success the browser is already navigating to Microsoft; nothing to do.
+    return { error: null }
+  }
+
   const signOut = async () => {
     await supabase.auth.signOut()
     setProfile(null)
@@ -273,6 +297,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         branchId,
         setBranchId,
         signIn,
+        signInWithMicrosoft,
         signOut,
         updateAvatar,
       }}
