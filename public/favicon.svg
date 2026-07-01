@@ -5,20 +5,36 @@
       <stop offset="0.55" stop-color="#5a2350"/>
       <stop offset="1" stop-color="#8a1a3a"/>
     </linearGradient>
-    <linearGradient id="pulseLine" x1="64" y1="256" x2="448" y2="256" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#ffe3ec"/>
-    </linearGradient>
   </defs>
   <rect width="512" height="512" rx="112" fill="url(#pulseBg)"/>
   <rect x="6" y="6" width="500" height="500" rx="106" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="12"/>
+
+  <!-- Static track (dim) -->
   <path
     d="M64 256 H168 L206 152 L268 360 L306 232 L332 296 H448"
     fill="none"
-    stroke="url(#pulseLine)"
+    stroke="#ffffff"
+    stroke-opacity="0.22"
     stroke-width="30"
     stroke-linecap="round"
     stroke-linejoin="round"/>
-  <circle cx="448" cy="296" r="34" fill="#ffffff" fill-opacity="0.22"/>
-  <circle cx="448" cy="296" r="20" fill="#ffffff"/>
+
+  <!-- Animated signal sweeping along the line -->
+  <path
+    d="M64 256 H168 L206 152 L268 360 L306 232 L332 296 H448"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="30"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    pathLength="1000"
+    stroke-dasharray="170 830">
+    <animate attributeName="stroke-dashoffset" values="1000;0" dur="2s" repeatCount="indefinite"/>
+  </path>
+
+  <!-- Endpoint beacon -->
+  <circle cx="448" cy="296" r="20" fill="#ffffff">
+    <animate attributeName="r" values="18;26;18" dur="2s" repeatCount="indefinite"/>
+    <animate attributeName="fill-opacity" values="1;0.55;1" dur="2s" repeatCount="indefinite"/>
+  </circle>
 </svg>
